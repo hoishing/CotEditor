@@ -1105,7 +1105,17 @@ extension FileBrowserViewController: NSOutlineViewDelegate {
         let cellView = outlineView.makeView(withIdentifier: .node, owner: self) as? FileBrowserTableCellView ?? .init()
         cellView.textField?.delegate = self
         
-        cellView.imageView!.image = NSImage(systemSymbolName: node.file.kind.symbolName, accessibilityDescription: node.file.kind.label)!
+        if node.file.isFolder {
+            // Seti has no folder icon — let the disclosure caret stand alone.
+            cellView.imageView!.image = nil
+            cellView.showsIcon = false
+        } else {
+            let setiIcon = SetiIconProvider.icon(for: node.file)
+            setiIcon.image.accessibilityDescription = setiIcon.label
+            cellView.imageView!.image = setiIcon.image
+            cellView.showsIcon = true
+        }
+        cellView.imageView!.contentTintColor = nil
         cellView.imageView!.alphaValue = node.file.isHidden ? 0.5 : 1
         cellView.isAlias = node.file.isAlias
         cellView.tags = node.file.tags
@@ -1264,14 +1274,23 @@ private final class FileBrowserTableRowView: NSTableRowView {
 
 
 private final class FileBrowserTableCellView: NSTableCellView {
-    
+
     var isAlias: Bool = false  { didSet { self.aliasArrowView?.isHidden = !isAlias } }
     var tags: [FinderTag] = []  { didSet { self.updateTagsView() } }
     var isSelected = false  { didSet { self.updateTagsView() } }
-    
+
+    /// Whether the icon column takes up layout space. When false (e.g. for folders
+    /// in the Seti icon theme), the text field shifts left to hug the disclosure caret.
+    var showsIcon: Bool = true {
+        didSet { self.imageWidthConstraint?.constant = showsIcon ? Self.iconWidth : 0 }
+    }
+
     private var aliasArrowView: NSImageView?
     private var tagsView: NSHostingView<TagsView>?
     private var tagsLayoutConstraint: NSLayoutConstraint?
+    private var imageWidthConstraint: NSLayoutConstraint?
+
+    private static let iconWidth: CGFloat = 17  // value used in a sample code by Apple
     
     
     override init(frame frameRect: NSRect) {
@@ -1333,14 +1352,17 @@ private final class FileBrowserTableCellView: NSTableCellView {
         let textFieldTrailingAnchor = textField.trailingAnchor.constraint(equalTo: self.trailingAnchor, constant: -2)
         textFieldTrailingAnchor.priority = .defaultLow
         self.tagsLayoutConstraint = tagsView.leadingAnchor.constraint(equalToSystemSpacingAfter: textField.trailingAnchor, multiplier: 1)
-        
+
+        let imageWidthConstraint = imageView.widthAnchor.constraint(equalToConstant: Self.iconWidth)
+        self.imageWidthConstraint = imageWidthConstraint
+
         NSLayoutConstraint.activate([
             imageView.firstBaselineAnchor.constraint(equalTo: textField.firstBaselineAnchor),
             aliasArrowView.firstBaselineAnchor.constraint(equalTo: textField.firstBaselineAnchor),
             textField.centerYAnchor.constraint(equalTo: self.centerYAnchor),
             tagsView.centerYAnchor.constraint(equalTo: self.centerYAnchor),
             imageView.leadingAnchor.constraint(equalTo: self.leadingAnchor, constant: 2),
-            imageView.widthAnchor.constraint(equalToConstant: 17),  // the value used in a sample code by Apple
+            imageWidthConstraint,
             aliasArrowView.centerXAnchor.constraint(equalTo: imageView.centerXAnchor),
             textField.leadingAnchor.constraint(equalToSystemSpacingAfter: imageView.trailingAnchor, multiplier: 1),
             textFieldTrailingAnchor,
